@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0b0f" />
+  <title>P.O.P.S. — One Page One-Stop Shop (v0.1)</title>
+  <meta name="description" content="Single-file P.O.P.S. center: Engine Emulator, Snake Eyes micro-CDN, Scroll Catalog, Roger API console, Favorites, and a 3D panel UI. Offline-first, no React/Node." />
+
+  <!-- Fonts & Base Styles -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0b0f; --fg: #e6e8ee; --muted: #a2a8b5; --accent: #6be675; --hot: #ff4d6d;
+      --card: #121521; --rim: #1a1f33; --hi: #9ec8ff; --warn: #ffd166; --ok: #2ecc71; --err: #e74c3c;
+    }
+    * { box-sizing: border-box; }
+    html, body { height:100%; margin:0; background:radial-gradient(1100px 800px at 20% -10%, #131728 0%, #0a0b0f 70%); color:var(--fg); font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto; overflow:hidden; }
+
+    /* HUD Top Bar */
+    #hud { position: fixed; inset: 0 auto auto 0; width:100%; height:56px; display:flex; align-items:center; gap:12px; padding:8px 14px; background:linear-gradient(180deg, rgba(10,11,15,0.92), rgba(10,11,15,0.65)); border-bottom:1px solid #141a2c; z-index:1000; backdrop-filter: blur(10px); }
+    #brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:0.2px; }
+    #brand .dot { width:12px; height:12px; border-radius:50%; background:conic-gradient(from 120deg, var(--accent), #7df0c0, #57d4ff, #8aa9ff, var(--accent)); box-shadow:0 0 12px rgba(107,230,117,0.8); }
+    #brand span { opacity:0.9; }
+    #actions { margin-left:auto; display:flex; gap:8px; }
+    .btn { appearance:none; border:1px solid var(--rim); background:linear-gradient(180deg,#1b2034,#14182a); color:#e6e8ee; padding:8px 12px; border-radius:10px; font-weight:600; cursor:pointer; transition: .2s transform,.2s box-shadow,.2s border-color; }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.25); border-color:#2a3356; }
+    .btn.hl { background: linear-gradient(180deg, #2b3c5f, #1a2542); border-color:#2d3a63; }
+    .badge { padding:4px 8px; border:1px solid #253056; border-radius:999px; color:#b5c0de; font-weight:600; font-size:12px; }
+
+    /* Boot overlay */
+    #boot { position:fixed; inset:0; display:grid; place-items:center; background: radial-gradient(1200px 800px at 50% 0%, #0d1120 0%, #07080c 70%); z-index: 2000; }
+    #boot .card { background: linear-gradient(180deg, #13182a, #0e1322); border:1px solid #1f294b; border-radius: 16px; padding: 22px; width:min(680px, 92vw); box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
+    #log { height: 160px; overflow:auto; background:#0c1020; border:1px solid #1a2142; border-radius: 12px; padding:10px; color:#b8c4ff; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; }
+    #progress { height:10px; border-radius:999px; background:#0f1426; border:1px solid #1f294b; overflow:hidden; }
+    #progress > div { height:100%; width:0%; background:linear-gradient(90deg, #6be675, #57d4ff); }
+
+    /* 3D canvas container */
+    #stage { position:fixed; inset:56px 0 0 0; overflow:hidden; }
+
+    /* Panel DOMs for CSS3D */
+    .panel { width: 520px; height: 320px; background: linear-gradient(180deg, rgba(24,28,48,0.96), rgba(16,20,36,0.96)); border: 1px solid rgba(60,72,120,0.6); border-radius: 16px; backdrop-filter: blur(8px); box-shadow: 0 10px 32px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(110,130,200,0.08); display:flex; flex-direction:column; overflow:hidden; }
+    .p-head { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(60,72,120,0.35); background:linear-gradient(180deg, rgba(30,36,62,0.9), rgba(21,25,44,0.9)); }
+    .p-head h3 { margin:0; font-size:14px; font-weight:800; letter-spacing:0.2px; color:#dfe6ff; }
+    .p-head .drag { width:10px; height:10px; border-radius:50%; background: var(--accent); box-shadow:0 0 8px rgba(107,230,117,0.8); margin-right:6px; }
+    .p-body { flex:1; display:flex; }
+    .p-tools { display:flex; gap:6px; margin-left:auto; }
+    .p-tools .mini { width:26px; height:26px; display:grid; place-items:center; border-radius:8px; border:1px solid #2a3356; background:#141a2c; cursor:pointer; font-weight:800; }
+    .p-body .col { flex:1; padding:10px; overflow:auto; }
+    .kv { display:grid; grid-template-columns: 130px 1fr; gap:8px; align-items:center; font-size:12px; color:#cbd5ff; }
+    .kv input, .kv select, .kv textarea { width:100%; background:#0f1426; border:1px solid #242d50; color:#e6e8ee; padding:8px 10px; border-radius:10px; font-family:inherit; }
+    .kv textarea { min-height: 72px; }
+    .list { display:grid; gap:8px; }
+    .card { padding:10px; border-radius:12px; border:1px solid #27325a; background:linear-gradient(180deg,#12182a,#0f1426); display:flex; gap:10px; align-items:center; }
+    .card img { width:32px; height:32px; border-radius:8px; object-fit:cover; border:1px solid #2a3356; }
+    .card .grow { flex:1; }
+    .card .title { font-weight:700; }
+    .pill { padding:4px 8px; border:1px solid #2a3356; border-radius:999px; font-size:11px; color:#9db0ff; }
+
+    /* Browser panel content */
+    .urlbar { display:flex; gap:8px; margin-bottom:8px; }
+    .urlbar input { flex:1; }
+    .browser { position:relative; border-radius:12px; border:1px solid #2a3356; overflow:hidden; background:#0b0f1e; height: 230px; }
+    .browser iframe { width:100%; height:100%; border:0; background:#0b0f1e; }
+
+    /* Small helper UI */
+    #toast { position: fixed; bottom: 16px; left:50%; transform: translateX(-50%); background:#0f1426; border:1px solid #1f294b; border-radius: 12px; padding:10px 14px; color:#cbd5ff; box-shadow:0 8px 22px rgba(0,0,0,0.35); display:none; z-index:1500; }
+
+    /* Mobile fallback note */
+    @media (max-width: 980px) {
+      #hud { height: 64px; }
+      .panel { width: 92vw; height: 58vh; }
+    }
+  </style>
+
+  <!-- Libraries (ES Modules) -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js",
+        "three/examples/jsm/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/",
+        "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+      }
+    }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+</head>
+
+<body>
+  <!-- HUD -->
+  <div id="hud">
+    <div id="brand"><div class="dot"></div><span>P.O.P.S. — One Page Center</span><span class="badge">v0.1 • offline-first</span></div>
+    <div id="actions">
+      <button class="btn" id="btnSave">💾 Save page</button>
+      <button class="btn hl" id="btnPrecache">⚡ Precache catalog</button>
+      <button class="btn" id="btnPurge">🧹 Purge cache</button>
+      <span class="badge" id="cacheStat">cache: 0</span>
+    </div>
+  </div>
+
+  <!-- Boot overlay -->
+  <div id="boot">
+    <div class="card">
+      <h2 style="margin:0 0 10px 0">Initializing P.O.P.S. Core</h2>
+      <div id="progress" style="margin:10px 0 14px 0"><div></div></div>
+      <div id="log"></div>
+      <div style="margin-top:10px; display:flex; gap:8px; justify-content:flex-end">
+        <button class="btn" id="btnSkipBoot">Skip</button>
+        <button class="btn hl" id="btnStart">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stage for 3D panels (CSS3DRenderer attaches here) -->
+  <div id="stage"></div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Panel DOM templates (will be turned into CSS3DObjects) -->
+  <template id="tpl-browser">
+    <div class="panel" data-panel="browser">
+      <div class="p-head"><div class="drag"></div><h3>Web Browser (Any Origin)</h3><div class="p-tools"><div class="mini" data-act="dup">⧉</div><div class="mini" data-act="max">▣</div></div></div>
+      <div class="p-body">
+        <div class="col">
+          <div class="urlbar">
+            <input type="text" placeholder="https://example.com" value="https://example.com" />
+            <button class="btn" data-act="go">Go</button>
+            <button class="btn" data-act="back">←</button>
+            <button class="btn" data-act="fwd">→</button>
+            <button class="btn" data-act="reload">⟳</button>
+            <button class="btn" data-act="fav">☆</button>
+          </div>
+          <div class="browser"><iframe sandbox="allow-scripts allow-forms allow-popups allow-pointer-lock allow-top-navigation-by-user-activation" referrerpolicy="no-referrer"></iframe></div>
+          <div style="margin-top:6px; font-size:12px; color:#93a2d8">Note: Cross-origin content loads, but we can't read inside it (for security). Back/Forward track URLs you enter.</div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-catalog">
+    <div class="panel" data-panel="catalog">
+      <div class="p-head"><div class="drag"></div><h3>Scroll Catalog • AppDrops</h3><div class="p-tools"><div class="mini" data-act="max">▣</div></div></div>
+      <div class="p-body">
+        <div class="col">
+          <div class="kv" style="margin-bottom:8px">
+            <span>Filter</span><input id="catFilter" type="text" placeholder="Search AppDrops by name..." />
+          </div>
+          <div class="list" id="catalogList"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-roger">
+    <div class="panel" data-panel="roger">
+      <div class="p-head"><div class="drag"></div><h3>Roger • AI Console</h3><div class="p-tools"><div class="mini" data-act="max">▣</div></div></div>
+      <div class="p-body">
+        <div class="col">
+          <div class="kv" style="margin-bottom:6px">
+            <span>API Base URL</span><input id="apiBase" type="text" placeholder="https://api.your-llm.com/v1" />
+            <span>API Key</span><input id="apiKey" type="password" placeholder="sk-..." />
+            <span>Model</span><input id="apiModel" type="text" value="gpt-4o-mini" />
+            <span>Remember key</span><select id="rememberKey"><option value="no">No</option><option value="yes">Yes (local)</option></select>
+          </div>
+          <div class="kv">
+            <span>Prompt</span><textarea id="prompt" placeholder="Ask Roger anything about your AppDrops, cache, or web."></textarea>
+            <span></span><button class="btn hl" id="askRoger">Ask Roger</button>
+          </div>
+          <div id="rogerOut" style="margin-top:10px; white-space:pre-wrap; font-family: ui-monospace, monospace; font-size:13px; color:#dce6ff"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-cache">
+    <div class="panel" data-panel="cache">
+      <div class="p-head"><div class="drag"></div><h3>Snake Eyes • Cache Snooper</h3><div class="p-tools"><div class="mini" data-act="max">▣</div></div></div>
+      <div class="p-body">
+        <div class="col">
+          <div style="display:flex; gap:8px; margin-bottom:6px">
+            <button class="btn" id="btnListCache">List</button>
+            <button class="btn" id="btnHeatMap">Heat map</button>
+            <button class="btn" id="btnPruneWarm">Prune warm</button>
+            <button class="btn" id="btnPruneCold">Prune cold</button>
+          </div>
+          <div id="cacheList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+    import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+    import * as CANNON from 'cannon-es';
+
+    // -----------------------------
+    // Utilities
+    // -----------------------------
+    const logEl = document.getElementById('log');
+    const bootEl = document.getElementById('boot');
+    const progressBar = document.querySelector('#progress > div');
+    const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(()=> t.style.display='none', 2400); };
+    const log = (msg) => { const line = document.createElement('div'); line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`; logEl.appendChild(line); logEl.scrollTop = logEl.scrollHeight; };
+    const clamp = (n,min,max)=>Math.max(min,Math.min(max,n));
+
+    // Persistence helpers
+    const store = {
+      get k(){ return JSON.parse(localStorage.getItem('POPS_STORE')||'{}'); },
+      set k(v){ localStorage.setItem('POPS_STORE', JSON.stringify(v)); },
+      read(path, fallback){ try{ const v = path.split('.').reduce((a,k)=>a?.[k], store.k); return (v===undefined?fallback:v);}catch{ return fallback } },
+      write(path, value){ const obj = store.k; const parts = path.split('.'); let t=obj; for (let i=0;i<parts.length-1;i++){ t[parts[i]] = t[parts[i]] || {}; t=t[parts[i]];} t[parts[parts.length-1]] = value; store.k=obj; }
+    };
+
+    // Crypto hash (Engine Emulator uses this)
+    async function sha256(text){ const enc = new TextEncoder(); const data = enc.encode(text); const buf = await crypto.subtle.digest('SHA-256', data); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+
+    // Micro CDN (no SW; uses CacheStorage + manual fetch wrappers)
+    const CDN_NAME = 'pops-cdn-v1';
+    const TBL = 'POPS_TEMPS'; // hot/warm/cold mapping
+
+    const microCDN = {
+      async put(url, resp){ const cache = await caches.open(CDN_NAME); await cache.put(url, resp.clone()); await microCDN.note(url, 'warm'); return resp; },
+      async get(url){ const cache = await caches.open(CDN_NAME); return cache.match(url); },
+      async del(url){ const cache = await caches.open(CDN_NAME); await cache.delete(url); await microCDN.note(url, null); },
+      async keys(){ const cache = await caches.open(CDN_NAME); const reqs = await cache.keys(); return reqs.map(r=>r.url); },
+      async fetch(url, opts={}){ // cache-first for same-origin
+        const sameOrigin = new URL(url, location.href).origin === location.origin;
+        if(sameOrigin){
+          let hit = await microCDN.get(url);
+          if(hit) return hit;
+          const resp = await fetch(url, opts);
+          if(resp.ok) await microCDN.put(url, resp.clone());
+          return resp;
+        }
+        // cross-origin: just fetch (can't cache reliably without CORS)
+        return fetch(url, opts);
+      },
+      async prefetch(urls=[]){
+        let done=0; for(const u of urls){ try{ const r = await fetch(u, {cache:'reload'}); if(r.ok){ await microCDN.put(u, r.clone()); done++; } }catch(e){ console.warn('prefetch fail', u, e); }
+          progressBar.style.width = `${clamp((done/urls.length)*100, 0, 100)}%`; }
+        return done;
+      },
+      temps(){ return JSON.parse(localStorage.getItem(TBL)||'{}'); },
+      async note(url, temp){ const map = microCDN.temps(); if(temp) map[url]=temp; else delete map[url]; localStorage.setItem(TBL, JSON.stringify(map)); },
+      async setTemp(url, temp){ await microCDN.note(url, temp); },
+      async prune(which){ const map = microCDN.temps(); const toDel = []; for(const [url,temp] of Object.entries(map)){ if(temp===which) toDel.push(url); }
+        for(const u of toDel){ await microCDN.del(u); } return toDel.length; }
+    };
+
+    // Engine Emulator (EE): verify AppDrop manifests & prepare CDN
+    const defaultCatalog = [
+      { name: 'Stakin\' Mula', emoji:'💎', icon:'appdrops/stakin-mula/icon.png', entry:'appdrops/stakin-mula/intro.html', assets:['appdrops/stakin-mula/app.json'] },
+      { name: 'Slangtionary', emoji:'📚', icon:'appdrops/slangtionary/icon.png', entry:'appdrops/slangtionary/intro.html', assets:['appdrops/slangtionary/app.json'] },
+      { name: 'Launchpad', emoji:'🚀', icon:'appdrops/launchpad/icon.png', entry:'appdrops/launchpad/index.html', assets:['appdrops/launchpad/app.json'] }
+    ];
+
+    const EE = {
+      catalog: [],
+      async loadCatalog(){
+        // Try /appdrops/index.json first; else fallback to defaultCatalog
+        try{
+          const r = await microCDN.fetch('appdrops/index.json');
+          if(r.ok){ const arr = await r.json(); this.catalog = Array.isArray(arr)?arr:defaultCatalog; log(`EE: loaded catalog from /appdrops/index.json (${this.catalog.length})`); }
+          else { this.catalog = defaultCatalog; log('EE: /appdrops/index.json not found; using default catalog'); }
+        }catch(e){ this.catalog = defaultCatalog; log('EE: fallback to default catalog'); }
+        store.write('catalog', this.catalog);
+      },
+      async verify(app){
+        // Verify required fields and generate manifest hash (if available)
+        const required = ['name','icon','entry'];
+        const miss = required.filter(k=>!app[k]);
+        if(miss.length){ return { ok:false, reason:`Missing ${miss.join(', ')}`}; }
+        let manifestHash = 'n/a';
+        try{
+          if(app.assets && app.assets[0]){
+            const r = await microCDN.fetch(app.assets[0]);
+            if(r.ok){ const txt = await r.text(); manifestHash = await sha256(txt); }
+          }
+        }catch{}
+        return { ok:true, manifestHash };
+      },
+      async prepopulate(){
+        // Pre-cache icons, entries, and declared assets for same-origin apps
+        const urls = [];
+        for(const app of this.catalog){
+          for(const u of [app.icon, app.entry, ...(app.assets||[])]){
+            if(!u) continue;
+            const full = new URL(u, location.href).href; if(new URL(full).origin === location.origin) urls.push(full);
+          }
+        }
+        const done = await microCDN.prefetch(urls);
+        log(`EE: prepopulate cached ${done}/${urls.length} items`);
+        document.getElementById('cacheStat').textContent = `cache: ${(await microCDN.keys()).length}`;
+        return done;
+      }
+    };
+
+    // Snake Eyes (cache snooper UI)
+    const SnakeEyes = {
+      el: null,
+      async render(){
+        const list = document.getElementById('cacheList'); list.innerHTML='';
+        const keys = await microCDN.keys();
+        const temps = microCDN.temps();
+        for(const url of keys){
+          const row = document.createElement('div'); row.className='card';
+          const ico = document.createElement('div'); ico.className='pill'; ico.textContent = temps[url]||'warm';
+          const title = document.createElement('div'); title.className='grow'; title.innerHTML = `<div class='title'>${url.replace(location.origin,'')}</div>`;
+          const hotBtn = document.createElement('button'); hotBtn.className='btn'; hotBtn.textContent='🔥 Hot'; hotBtn.onclick=()=>{ microCDN.setTemp(url,'hot').then(()=>SnakeEyes.render()); };
+          const warmBtn = document.createElement('button'); warmBtn.className='btn'; warmBtn.textContent='🌤 Warm'; warmBtn.onclick=()=>{ microCDN.setTemp(url,'warm').then(()=>SnakeEyes.render()); };
+          const coldBtn = document.createElement('button'); coldBtn.className='btn'; coldBtn.textContent='❄️ Cold'; coldBtn.onclick=()=>{ microCDN.setTemp(url,'cold').then(()=>SnakeEyes.render()); };
+          const delBtn = document.createElement('button'); delBtn.className='btn'; delBtn.textContent='🗑'; delBtn.onclick=()=>{ microCDN.del(url).then(()=>{ SnakeEyes.render(); document.getElementById('cacheStat').textContent = `cache: ${(keys.length-1)}`; }); };
+          row.append(ico, title, hotBtn, warmBtn, coldBtn, delBtn);
+          list.appendChild(row);
+        }
+      }
+    };
+
+    // Catalog UI
+    async function renderCatalog(filter=''){
+      const host = document.getElementById('catalogList'); host.innerHTML='';
+      const favs = new Set(store.read('favorites', []));
+      for(const app of EE.catalog){
+        if(filter && !app.name.toLowerCase().includes(filter.toLowerCase())) continue;
+        const row = document.createElement('div'); row.className='card';
+        const img = document.createElement('img'); img.src = app.icon; img.onerror = ()=>{ img.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'64\' height=\'64\'><rect width=\'100%\' height=\'100%\' fill=\'%231a2542\'/><text x=\'50%\' y=\'55%\' dominant-baseline=\'middle\' text-anchor=\'middle\' fill=\'%239db0ff\' font-size=\'12\'>icon</text></svg>'; };
+        const grow = document.createElement('div'); grow.className='grow';
+        grow.innerHTML = `<div class='title'>${app.emoji||''} ${app.name}</div><div style='font-size:12px; color:#9db0ff'>${app.entry}</div>`;
+        const fav = document.createElement('button'); fav.className='btn'; fav.textContent = favs.has(app.entry)?'★':'☆';
+        fav.onclick=()=>{
+          const arr = new Set(store.read('favorites', []));
+          if(arr.has(app.entry)) arr.delete(app.entry); else arr.add(app.entry);
+          store.write('favorites', Array.from(arr)); renderCatalog(filter);
+          toast('Favorites updated');
+        };
+        const verify = document.createElement('button'); verify.className='btn'; verify.textContent='EE Verify';
+        verify.onclick=async()=>{ const res = await EE.verify(app); toast(res.ok?`Verified ✓ hash ${res.manifestHash.slice(0,8)}...`:`EE fail: ${res.reason}`); };
+        const prec = document.createElement('button'); prec.className='btn'; prec.textContent='Cache';
+        prec.onclick=async()=>{ const urls = [app.icon, app.entry, ...(app.assets||[])].filter(Boolean).map(u=>new URL(u, location.href).href).filter(u=> new URL(u).origin===location.origin);
+          await microCDN.prefetch(urls); toast(`Cached ${urls.length} items`); document.getElementById('cacheStat').textContent = `cache: ${(await microCDN.keys()).length}`; };
+        const open = document.createElement('button'); open.className='btn hl'; open.textContent='Open';
+        open.onclick=()=> openInBrowserPanel(app.entry);
+        row.append(img, grow, fav, verify, prec, open);
+        host.appendChild(row);
+      }
+    }
+
+    // Roger Console (online if user provides endpoint & key, else offline stub)
+    async function askRoger(){
+      const base = document.getElementById('apiBase').value.trim();
+      const key = document.getElementById('apiKey').value.trim();
+      const model = document.getElementById('apiModel').value.trim() || 'gpt-4o-mini';
+      const prompt = document.getElementById('prompt').value.trim();
+      const out = document.getElementById('rogerOut');
+      out.textContent = 'Thinking...';
+
+      // Persist the API key if asked
+      const remember = document.getElementById('rememberKey').value;
+      if(remember==='yes'){ store.write('roger.apiKey', key); store.write('roger.apiBase', base); store.write('roger.model', model); } else { store.write('roger.apiKey', ''); }
+
+      // Offline stub if no key/base
+      if(!base || !key){
+        const rules = `You are Roger, P.O.P.S. guide. Prioritize: Engine Emulator (EE), Snake Eyes cache, Scroll Catalog, Browser panel. Provide JSON recipes when asked. Avoid reading cross-origin iframes.`;
+        const hint = `Offline mode. Try setting API Base + Key in the panel for online answers. Example: https://api.openai.com/v1`;
+        const response = `Roger (offline):\n- Rule Deck Loaded: ${rules}\n- You asked: ${prompt}\n- Suggestion: Use EE ➜ Verify an AppDrop, then Precache, then Open in Browser. Favorites sync to local. ${hint}`;
+        out.textContent = response; return;
+      }
+
+      try{
+        // Generic OpenAI-style chat request. Endpoint must support CORS.
+        const r = await fetch(`${base.replace(/\/$/,'')}/chat/completions`, {
+          method:'POST',
+          headers:{ 'Authorization':`Bearer ${key}`, 'Content-Type':'application/json' },
+          body: JSON.stringify({ model, messages:[{role:'system', content:'You are Roger, P.O.P.S. guide.'}, {role:'user', content: prompt}] })
+        });
+        if(!r.ok){ out.textContent = `Error ${r.status}: ${await r.text()}`; return; }
+        const data = await r.json();
+        const text = data?.choices?.[0]?.message?.content || JSON.stringify(data);
+        out.textContent = text;
+      }catch(e){ out.textContent = 'Network/CORS error. Use offline mode or proxy.'; }
+    }
+
+    // Browser panel logic
+    function setupBrowserPanel(root){
+      const urlIn = root.querySelector('input');
+      const frame = root.querySelector('iframe');
+      const goBtn = root.querySelector('[data-act="go"]');
+      const backBtn = root.querySelector('[data-act="back"]');
+      const fwdBtn = root.querySelector('[data-act="fwd"]');
+      const reloadBtn = root.querySelector('[data-act="reload"]');
+      const favBtn = root.querySelector('[data-act="fav"]');
+
+      const history = []; let idx = -1;
+      const navigate = (url)=>{ try{ if(!/^https?:\/\//i.test(url)) url = new URL(url, location.href).href; }catch{ /* ignore */ }
+        history.splice(idx+1); history.push(url); idx = history.length-1; frame.src = url; urlIn.value = url; store.write('browser.last', url); };
+      const back = ()=>{ if(idx>0){ idx--; frame.src=history[idx]; urlIn.value=history[idx]; } };
+      const fwd = ()=>{ if(idx<history.length-1){ idx++; frame.src=history[idx]; urlIn.value=history[idx]; } };
+
+      goBtn.onclick = ()=> navigate(urlIn.value.trim());
+      urlIn.addEventListener('keydown', e=>{ if(e.key==='Enter') navigate(urlIn.value.trim()); });
+      backBtn.onclick = back; fwdBtn.onclick = fwd; reloadBtn.onclick = ()=> frame.src = frame.src;
+
+      favBtn.onclick = ()=>{ const arr = new Set(store.read('favorites', [])); arr.add(urlIn.value.trim()); store.write('favorites', Array.from(arr)); toast('Saved to favorites'); };
+
+      // initial
+      const last = store.read('browser.last', 'https://example.com'); navigate(last);
+    }
+
+    // 3D Stage: CSS3D Panels (draggable, snap)
+    const stage = document.getElementById('stage');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, stage.clientWidth / stage.clientHeight, 0.1, 2000); camera.position.set(0, 0, 1300);
+    const renderer = new CSS3DRenderer(); renderer.setSize(stage.clientWidth, stage.clientHeight); stage.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping=true; controls.dampingFactor=0.08; controls.minDistance=400; controls.maxDistance=2400;
+
+    // Simple ambient background geometry (just for parallax)
+    const bg = document.createElement('div'); bg.style.width='2000px'; bg.style.height='1200px'; bg.style.border='1px solid #12182a'; bg.style.borderRadius='22px'; bg.style.background='radial-gradient(900px 600px at 50% -20%, rgba(70,110,150,0.10), rgba(10,12,18,0.5))';
+    const bgObj = new CSS3DObject(bg); bgObj.position.set(0,0,-200); scene.add(bgObj);
+
+    const panels = [];
+    function addPanel(templateId, position){
+      const tpl = document.getElementById(templateId); const node = tpl.content.firstElementChild.cloneNode(true);
+      const obj = new CSS3DObject(node); obj.position.copy(position); obj._isPanel = true; scene.add(obj);
+
+      // header tool buttons
+      node.querySelectorAll('.p-tools .mini').forEach(btn=>{
+        btn.onclick = ()=>{
+          const act = btn.getAttribute('data-act');
+          if(act==='max') gsap.to(obj.position, { z: 200, duration: 0.4, yoyo:true, repeat:1, ease: 'power2.inOut' });
+          if(act==='dup') { const p = obj.position.clone().add(new THREE.Vector3(40, -40, 0)); addPanel('tpl-browser', p); }
+        };
+      });
+
+      // Attach specific behaviors per panel
+      const type = node.getAttribute('data-panel');
+      if(type==='browser') setupBrowserPanel(node);
+      if(type==='cache') {
+        node.querySelector('#btnListCache').onclick = ()=> SnakeEyes.render();
+        node.querySelector('#btnHeatMap').onclick = ()=> toast('Heat map based on hot/warm/cold labels.');
+        node.querySelector('#btnPruneWarm').onclick = async()=>{ const n = await microCDN.prune('warm'); toast(`Pruned warm: ${n}`); SnakeEyes.render(); };
+        node.querySelector('#btnPruneCold').onclick = async()=>{ const n = await microCDN.prune('cold'); toast(`Pruned cold: ${n}`); SnakeEyes.render(); };
+      }
+      if(type==='catalog'){
+        node.querySelector('#catFilter').oninput = (e)=> renderCatalog(e.target.value);
+      }
+      if(type==='roger'){
+        node.querySelector('#askRoger').onclick = askRoger;
+        // load saved creds if any
+        const savedBase = store.read('roger.apiBase',''); const savedKey = store.read('roger.apiKey',''); const savedModel = store.read('roger.model','gpt-4o-mini');
+        node.querySelector('#apiBase').value = savedBase; node.querySelector('#apiKey').value = savedKey; node.querySelector('#apiModel').value = savedModel;
+      }
+
+      // Draggable (raycast-free simple drag on screen plane)
+      let dragging=false, ox=0, oy=0, startPos=null;
+      node.querySelector('.p-head').addEventListener('pointerdown', e=>{
+        dragging=true; startPos = obj.position.clone(); ox = e.clientX; oy = e.clientY; node.setPointerCapture(e.pointerId); });
+      node.querySelector('.p-head').addEventListener('pointermove', e=>{
+        if(!dragging) return; const dx = e.clientX-ox, dy=e.clientY-oy; obj.position.x = startPos.x + dx*1.5; obj.position.y = startPos.y - dy*1.5; });
+      node.querySelector('.p-head').addEventListener('pointerup', e=>{
+        dragging=false; // snap to a loose grid
+        obj.position.x = Math.round(obj.position.x/40)*40; obj.position.y = Math.round(obj.position.y/40)*40; gsap.fromTo(obj.position, {z:60}, {z:0, duration:0.4, ease:'bounce.out'});
+      });
+
+      panels.push(obj); return obj;
+    }
+
+    function onResize(){ camera.aspect = stage.clientWidth/stage.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(stage.clientWidth, stage.clientHeight); }
+    window.addEventListener('resize', onResize);
+
+    function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+
+    // Launch helpers
+    function openInBrowserPanel(url){
+      // Find an existing browser panel; else create one
+      let obj = panels.find(p=>p.element?.getAttribute('data-panel')==='browser');
+      if(!obj) obj = addPanel('tpl-browser', new THREE.Vector3(-360, 0, 0));
+      const node = obj.element; const input = node.querySelector('input'); const go = node.querySelector('[data-act="go"]');
+      input.value = url; go.click();
+      // bring it forward visually
+      gsap.to(obj.position, { z: 120, duration: 0.3, yoyo:true, repeat:1 });
+    }
+
+    // HUD buttons
+    document.getElementById('btnSave').onclick = ()=>{
+      const html = '<!DOCTYPE html>\n'+document.documentElement.outerHTML; const blob = new Blob([html], {type:'text/html'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pops-one.html'; a.click();
+    };
+    document.getElementById('btnPrecache').onclick = async()=>{ await EE.prepopulate(); SnakeEyes.render(); toast('Precached catalog'); };
+    document.getElementById('btnPurge').onclick = async()=>{ const keys = await microCDN.keys(); for(const k of keys){ await microCDN.del(k); } toast('Cache cleared'); document.getElementById('cacheStat').textContent = 'cache: 0'; SnakeEyes.render(); };
+
+    // Boot sequence
+    async function boot(){
+      log('Boot: scanning environment'); await new Promise(r=>setTimeout(r,300)); progressBar.style.width='12%';
+      log('Boot: loading catalog'); await EE.loadCatalog(); progressBar.style.width='28%';
+      log('Boot: preparing micro-CDN'); await new Promise(r=>setTimeout(r,250)); progressBar.style.width='42%';
+      log('Boot: setting up 3D stage');
+      addPanel('tpl-browser', new THREE.Vector3(-360, 0, 0));
+      addPanel('tpl-catalog', new THREE.Vector3(320, 80, 0));
+      addPanel('tpl-roger', new THREE.Vector3(0, -280, 0));
+      addPanel('tpl-cache', new THREE.Vector3(380, -280, 0));
+      renderCatalog(''); SnakeEyes.render();
+      progressBar.style.width='78%';
+      await new Promise(r=>setTimeout(r,250));
+      log('Boot: finalizing'); progressBar.style.width='100%';
+      setTimeout(()=> bootEl.style.display='none', 380);
+    }
+
+    document.getElementById('btnStart').onclick = ()=> boot();
+    document.getElementById('btnSkipBoot').onclick = ()=> { bootEl.style.display='none'; };
+
+    // Start render loop
+    animate();
+
+  </script>
+</body>
+</html>
